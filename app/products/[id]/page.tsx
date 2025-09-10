@@ -1,11 +1,11 @@
 "use client";
 
+import { productsMap } from "@/app/data/products";
 import { useParams } from "next/navigation";
-import { products } from "../page";
 
 export default function ProductDetailPage() {
   const { id } = useParams();
-  const product = products.find((p) => p.id === id);
+  const product = productsMap.find((p) => p.id === id);
 
   if (!product) {
     return <div className="p-6 text-red-600">Product not found!</div>;

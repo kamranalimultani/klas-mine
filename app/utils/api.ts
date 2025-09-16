@@ -1,4 +1,6 @@
 // utils/api.ts
+import axios from "axios";
+import { User } from "../store/useAuthStore";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL; // keep base url in .env
 
@@ -24,14 +26,13 @@ const request = async (
   body?: any,
   withToken: boolean = false
 ) => {
-    const headers: any = {
-        "Content-Type": "application/json",
-    };
-    
-    if (withToken) {
-        Object.assign(headers, getAuthHeaders());
-    }
-  console.log("Base URL:", BASE_URL); // ✅ safe to log here
+  const headers: any = {
+    "Content-Type": "application/json",
+  };
+
+  if (withToken) {
+    Object.assign(headers, getAuthHeaders());
+  }
 
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method,
@@ -51,17 +52,33 @@ const request = async (
 export const getRequest = (endpoint: string, withToken = false) =>
   request("GET", endpoint, null, withToken);
 
-export const postRequest = (
-  endpoint: string,
-  body: any,
-  withToken = false
-) => request("POST", endpoint, body, withToken);
+export const postRequest = (endpoint: string, body: any, withToken = false) =>
+  request("POST", endpoint, body, withToken);
 
-export const putRequest = (
-  endpoint: string,
-  body: any,
-  withToken = false
-) => request("PUT", endpoint, body, withToken);
+export const putRequest = (endpoint: string, body: any, withToken = false) =>
+  request("PUT", endpoint, body, withToken);
 
 export const deleteRequest = (endpoint: string, withToken = false) =>
   request("DELETE", endpoint, null, withToken);
+
+//  profile upload api
+export async function uploadProfileImage(file: File, user: User) {
+  const formData = new FormData();
+  formData.append("device", "android");
+  formData.append("app_version", "1.0.5");
+  formData.append("sess_id", user.sess_id);
+  formData.append("user_id", user.user_id);
+  formData.append("file", file);
+
+  const res = await axios.post(
+    `${BASE_URL}/account/upload-profile-image`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+
+  return res.data; // should include the uploaded image URL
+}

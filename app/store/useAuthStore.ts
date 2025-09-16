@@ -1,7 +1,7 @@
 // store/useAuthStore.ts
 import { create } from "zustand";
 
-interface User {
+export interface User {
   user_id: string;
   sess_id: string;
   name: string;
@@ -12,10 +12,11 @@ interface User {
   billing_expired?: string;
   is_email_verified?: string;
   address?: {
-    address_line_1: string;
-    city: string;
-    zip: string;
-    state_code: string;
+    address_line_1?: string;
+    city?: string;
+    zip?: string;
+    state_code?: string;
+    country?: string;
   };
 }
 

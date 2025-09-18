@@ -52,9 +52,34 @@ export default function MyPlan() {
       setLoading(false);
     }
   };
+  const fetchAllPlans = async () => {
+    if (!user?.user_id || !user?.sess_id) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const payload = {
+        device: "android",
+        app_version: "1.0.5",
+        latitude: "28.6139",
+        longitude: "77.2090",
+        user_id: user.user_id,
+        sess_id: user.sess_id,
+      };
+
+      const res = await postRequest("/billing/start-billing", payload, true);
+      console.log(res);
+    } catch (err) {
+      console.error("Failed to fetch plan:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchMyPlan();
+    fetchAllPlans();
   }, [user]);
 
   if (loading) {

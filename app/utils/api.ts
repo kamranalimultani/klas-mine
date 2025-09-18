@@ -12,7 +12,6 @@ const getAuthHeaders = () => {
 
     return {
       "Content-Type": "application/json",
-      Authorization: sessionId ? `Bearer ${sessionId}` : "",
       "x-user-id": userId || "",
     };
   }

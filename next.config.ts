@@ -5,7 +5,7 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "klassart.com",
-        pathname: "/web/uploads/image/**", // allow all under this path
+        pathname: "/web/uploads/**", // allow all under this path
       },
     ],
   },

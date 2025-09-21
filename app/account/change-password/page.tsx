@@ -89,11 +89,7 @@ export default function ChangePasswordForm() {
       };
 
       // use your helper (withToken true optional; depends on your backend/auth)
-      const res = await postRequest(
-        "/account/update-forgot-password",
-        payload,
-        true
-      );
+      const res = await postRequest("/account/update-forgot-password", payload);
 
       // if backend returns success flag
       if (res?.success) {

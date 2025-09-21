@@ -2,16 +2,26 @@
 import { useAuthStore } from "@/app/store/useAuthStore";
 import { postRequest } from "@/app/utils/api";
 import { useEffect, useState } from "react";
-type ActivePlan = {
-  plan_name: string;
-  price: string;
-  description?: string;
-  features?: string[];
+
+type Plan = {
+  subscription_plan_id: string;
+  title: string;
+  subscription_fee: string;
 };
+
+type ActivePlan = {
+  subscription_plan_id: string;
+  title: string;
+  subscription_fee: string;
+};
+
 export default function MyPlan() {
   const user = useAuthStore((state) => state.user);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [activePlan, setActivePlan] = useState<ActivePlan | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activating, setActivating] = useState<string | null>(null);
+
   if (!user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
@@ -20,12 +30,8 @@ export default function MyPlan() {
       </div>
     );
   }
-  const fetchMyPlan = async () => {
-    if (!user?.user_id || !user?.sess_id) {
-      setLoading(false);
-      return;
-    }
 
+  const fetchMyPlan = async () => {
     try {
       const payload = {
         device: "android",
@@ -36,28 +42,19 @@ export default function MyPlan() {
         sess_id: user.sess_id,
       };
 
-      const res = await postRequest("/billing/my-plan", payload, true);
-      if (res.success && res.data?.active_plan_info?.length > 0) {
-        const plan = res.data.active_plan_info[0]; // take first active plan
-        setActivePlan({
-          plan_name: plan.plan_name,
-          price: plan.price,
-          description: plan.description,
-          features: plan.features || [],
-        });
+      const res = await postRequest("/billing/my-plan", payload);
+      if (res.success && res.data?.active_plan_info) {
+        setActivePlan(res.data.active_plan_info);
+      } else {
+        setActivePlan(null);
+        fetchAllPlans();
       }
     } catch (err) {
-      console.error("Failed to fetch plan:", err);
-    } finally {
-      setLoading(false);
+      console.error("Failed to fetch my plan:", err);
     }
   };
-  const fetchAllPlans = async () => {
-    if (!user?.user_id || !user?.sess_id) {
-      setLoading(false);
-      return;
-    }
 
+  const fetchAllPlans = async () => {
     try {
       const payload = {
         device: "android",
@@ -68,176 +65,101 @@ export default function MyPlan() {
         sess_id: user.sess_id,
       };
 
-      const res = await postRequest("/billing/start-billing", payload, true);
-      console.log(res);
+      const res = await postRequest("/billing/start-billing", payload);
+      if (res.success && res.data?.subscription_plans) {
+        setPlans(res.data.subscription_plans);
+      }
     } catch (err) {
-      console.error("Failed to fetch plan:", err);
+      console.error("Failed to fetch all plans:", err);
+    }
+  };
+
+  const activatePlan = async (planId: string) => {
+    if (!user) return;
+    setActivating(planId);
+    try {
+      const payload = {
+        device: "android",
+        app_version: "1.0.5",
+        latitude: "28.6139",
+        longitude: "77.2090",
+        user_id: user.user_id,
+        sess_id: user.sess_id,
+        subscription_plan_id: planId,
+      };
+
+      const res = await postRequest("/billing/save-start-billing", payload);
+      if (res.success) {
+        await fetchMyPlan(); // refresh after activation
+        setPlans([]); // hide available plans after activation
+      } else {
+        console.error("Activation failed:", res.message);
+      }
+    } catch (err) {
+      console.error("Failed to activate plan:", err);
     } finally {
-      setLoading(false);
+      setActivating(null);
     }
   };
 
   useEffect(() => {
-    fetchMyPlan();
-    fetchAllPlans();
+    const loadData = async () => {
+      await fetchMyPlan();
+      setLoading(false);
+    };
+    loadData();
   }, [user]);
 
-  if (loading) {
-    return <p className="text-center py-12">Loading...</p>;
+  // If user has active plan(s), show them
+  if (loading) return <p className="text-center py-12">Loading...</p>;
+
+  if (activePlan) {
+    return (
+      <section className="py-12 text-gray-900">
+        <h2 className="text-3xl font-bold mb-6 text-center">My Active Plan</h2>
+        <div className="max-w-lg mx-auto">
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white rounded-2xl p-8 shadow-xl">
+            <h3 className="text-2xl font-bold mb-2">{activePlan.title}</h3>
+            <p className="text-4xl font-bold">
+              ₹{activePlan.subscription_fee}
+              <span className="text-base font-normal ml-1">/monthly</span>
+            </p>
+            <span className="bg-green-500 text-white text-xs px-2 py-1 mt-4 inline-block rounded-full font-medium">
+              Active
+            </span>
+          </div>
+        </div>
+      </section>
+    );
   }
+
+  // Otherwise show available plans
   return (
     <section className="py-12 text-gray-900">
-      <div className="text-center mb-12">
-        <h2 className="text-3xl md:text-4xl font-bold mb-2">
-          Experience AI Without Limits
-        </h2>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Go beyond basic AI tools with our Pro and Premium plans for
-          high-quality image generation and customization
-        </p>
+      <h2 className="text-3xl font-bold mb-6 text-center">Choose Your Plan</h2>
+      <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        {plans.map((plan) => (
+          <div
+            key={plan.subscription_plan_id}
+            className="bg-white text-black rounded-2xl p-8 shadow-xl"
+          >
+            <h3 className="text-xl font-semibold mb-2">{plan.title}</h3>
+            <p className="text-3xl font-bold mb-4">
+              ₹{plan.subscription_fee}
+              <span className="text-base font-normal ml-1">/monthly</span>
+            </p>
+            <button
+              onClick={() => activatePlan(plan.subscription_plan_id)}
+              disabled={activating === plan.subscription_plan_id}
+              className="mt-4 rounded-xl py-2 w-full font-semibold bg-gradient-to-r from-indigo-500 to-blue-500 text-white"
+            >
+              {activating === plan.subscription_plan_id
+                ? "Activating..."
+                : "Get Started"}
+            </button>
+          </div>
+        ))}
       </div>
-      {activePlan ? (
-        <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-8">
-          <h3 className="text-2xl font-bold text-indigo-600 mb-2">
-            {activePlan.plan_name}
-          </h3>
-          <p className="text-3xl font-bold mb-4 text-[#5555FF]">
-            ₹{activePlan.price} <span className="text-base">/monthly</span>
-          </p>
-          {activePlan.description && (
-            <p className="text-gray-600 mb-4">{activePlan.description}</p>
-          )}
-          <ul className="space-y-2">
-            {activePlan.features?.map((f, idx) => (
-              <li key={idx} className="flex items-center text-gray-700">
-                ✅ {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <div className="grid 2xl:grid-cols-2 gap-6 max-w-3xl mx-auto">
-          {/* Pro Plan */}
-          <div className="bg-gradient-to-br from-indigo-500 to-purple-500 rounded-2xl text-white p-12 shadow-xl">
-            <div className="flex justify-between items-start">
-              <div className="flex mb-4">
-                <div className="pricing-icon mr-4">
-                  <img
-                    src="/assets/images/icon/pricing-icon02.svg"
-                    alt="Popular"
-                  />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold mb-1">Pro Plan</h3>
-                  <h4 className="text-xl font-bold mb-4">Best for Creators</h4>
-                </div>
-              </div>
-              <span className="bg-white text-purple-600 text-xs px-2 py-1 rounded-full font-medium">
-                Popular
-              </span>
-            </div>
-            <p className="text-sm mb-4">
-              Content creators, designers, and users who need more flexibility.
-            </p>
-            <p className="text-3xl font-bold mb-2 text-[54px]">
-              ₹499 <span className="text-base font-normal  ">/monthly</span>
-            </p>
-
-            <ul className="mt-4 space-y-4 text-sm">
-              <li className="flex items-center text-[17px] text-white">
-                <span className="bg-gradient-to-r from-[#FFFFFF] to-[#FFFFFF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                  <img src="/assets/images/icon/blue-Check.png" alt="Check" />
-                </span>
-                Unlimited AI image generations
-              </li>
-              <li className="flex items-center text-[17px] text-white">
-                <span className="bg-gradient-to-r from-[#FFFFFF] to-[#FFFFFF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                  <img src="/assets/images/icon/blue-Check.png" alt="Check" />
-                </span>
-                High-resolution images
-              </li>
-              <li className="flex items-center text-[17px] text-white">
-                <span className="bg-gradient-to-r from-[#FFFFFF] to-[#FFFFFF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                  <img src="/assets/images/icon/blue-Check.png" alt="Check" />
-                </span>
-                No watermark on generated images
-              </li>
-              <li className="flex items-center text-[17px] text-white">
-                <span className="bg-gradient-to-r from-[#FFFFFF] to-[#FFFFFF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                  <img src="/assets/images/icon/blue-Check.png" alt="Check" />
-                </span>
-                Access to multiple styles
-              </li>
-            </ul>
-
-            <button className="mt-6 bg-white text-indigo-600 rounded-xl py-2 w-full font-semibold">
-              Get started
-            </button>
-          </div>
-
-          {/* Premium Plan */}
-          <div className="bg-white rounded-2xl shadow p-12 flex flex-col justify-between">
-            <div>
-              <div className="flex mb-4">
-                <div className="pricing-icon mr-4">
-                  <img
-                    src="/assets/images/icon/pricing-icon01.svg"
-                    alt="Popular"
-                  />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-indigo-600 mb-1">
-                    Premium Plan
-                  </h3>
-                  <h4 className="text-xl font-bold mb-4">For Professionals</h4>
-                </div>
-              </div>
-
-              <p className="text-sm text-gray-500 mb-4">
-                Best for: Businesses, agencies, and professionals who need AI
-                without limits.
-              </p>
-              <p className="text-3xl font-bold mb-2 text-[54px] text-[#5555FF]">
-                ₹999{" "}
-                <span className="text-base font-normal text-[#8C8B99]">
-                  /monthly
-                </span>
-              </p>
-
-              <ul className="mt-4 space-y-4 text-sm">
-                <li className="flex items-center text-[17px] text-black">
-                  <span className="bg-gradient-to-r from-[#C289FF] to-[#5555FF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                    <img src="/assets/images/icon/Check.png" alt="Check" />
-                  </span>
-                  Unlimited AI image generations
-                </li>
-                <li className="flex items-center text-[17px] text-black">
-                  <span className="bg-gradient-to-r from-[#C289FF] to-[#5555FF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                    <img src="/assets/images/icon/Check.png" alt="Check" />
-                  </span>
-                  Ultra HD & 4K resolution outputs
-                </li>
-                <li className="flex items-center text-[17px] text-black">
-                  <span className="bg-gradient-to-r from-[#C289FF] to-[#5555FF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                    <img src="/assets/images/icon/Check.png" alt="Check" />
-                  </span>
-                  No limits – full commercial rights
-                </li>
-                <li className="flex items-center text-[17px] text-black">
-                  <span className="bg-gradient-to-r from-[#C289FF] to-[#5555FF] w-[32px] h-[32px] rounded-full p-2 mr-2">
-                    <img src="/assets/images/icon/Check.png" alt="Check" />
-                  </span>
-                  Enhanced product placement
-                </li>
-              </ul>
-            </div>
-
-            <button className="mt-6 bg-gradient-to-r from-indigo-500 to-blue-500 text-white rounded-xl py-2 w-full font-medium">
-              Start for Free
-            </button>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

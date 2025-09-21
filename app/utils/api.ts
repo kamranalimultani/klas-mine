@@ -1,5 +1,5 @@
 // utils/api.ts
-import axios from "axios";
+import axios, { AxiosRequestConfig } from "axios";
 import { User } from "../store/useAuthStore";
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL; // keep base url in .env
@@ -11,40 +11,41 @@ const getAuthHeaders = () => {
     const userId = localStorage.getItem("user_id");
 
     return {
-      "Content-Type": "application/json",
       "x-user-id": userId || "",
+      "x-session-id": sessionId || "",
     };
   }
   return {};
 };
 
-// Generic request
+// Generic request with axios
 const request = async (
-  method: string,
+  method: AxiosRequestConfig["method"],
   endpoint: string,
   body?: any,
   withToken: boolean = false
 ) => {
-  const headers: any = {
-    "Content-Type": "application/json",
-  };
+  try {
+    const headers: Record<string, string> = {};
 
-  if (withToken) {
-    Object.assign(headers, getAuthHeaders());
+    if (withToken) {
+      Object.assign(headers, getAuthHeaders());
+    }
+
+    const res = await axios({
+      method,
+      url: `${BASE_URL}${endpoint}`,
+      data: body,
+      headers,
+    });
+
+    return res.data;
+  } catch (error: any) {
+    if (error.response) {
+      throw new Error(error.response.data?.message || "API request failed");
+    }
+    throw new Error(error.message || "Network error");
   }
-
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({}));
-    throw new Error(error.message || "API request failed");
-  }
-
-  return res.json();
 };
 
 // Exported helpers
@@ -60,7 +61,7 @@ export const putRequest = (endpoint: string, body: any, withToken = false) =>
 export const deleteRequest = (endpoint: string, withToken = false) =>
   request("DELETE", endpoint, null, withToken);
 
-//  profile upload api
+// Profile upload API
 export async function uploadProfileImage(file: File, user: User) {
   const formData = new FormData();
   formData.append("device", "android");
